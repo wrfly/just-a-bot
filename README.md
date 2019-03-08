@@ -1,2 +1,5 @@
-# just_a_bot
-follow all github active users
+# Justin Bot
+
+It's just a bot, flowing some users.
+
+Do not panic, I won't delivery ads.
