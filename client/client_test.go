@@ -5,10 +5,15 @@ import (
 	"fmt"
 	"os"
 	"testing"
+
+	"github.com/go-redis/redis"
 )
 
 func TestClient(t *testing.T) {
-	c := New(os.Getenv("TOKEN"))
+	opt, _ := redis.ParseURL("redis://127.0.0.1:6379/5")
+	rCli := redis.NewClient(opt)
+
+	c := New(os.Getenv("TOKEN"), rCli)
 
 	users := c.RelatedUsers(context.Background(), "wrfly")
 	// for _, user := range users {

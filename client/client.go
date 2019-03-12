@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"github.com/go-redis/redis"
@@ -24,7 +23,7 @@ func New(token string, redisCli *redis.Client) *Cli {
 		oauth2.HTTPClient,
 		&http.Client{
 			Transport: &roundTripper{
-				tp:    &http.Transport{},
+				tp:    http.DefaultTransport,
 				redis: redisCli,
 			},
 		},
@@ -34,12 +33,7 @@ func New(token string, redisCli *redis.Client) *Cli {
 		&oauth2.Token{AccessToken: token},
 	)
 	return &Cli{
-		cli: github.NewClient(
-			oauth2.NewClient(
-				ctx,
-				ts,
-			),
-		),
+		cli: github.NewClient(oauth2.NewClient(ctx, ts)),
 	}
 }
 
@@ -53,7 +47,7 @@ func (c *Cli) followers(ctx context.Context, user string) ([]*github.User, error
 			})
 		if err != nil {
 			if len(all) == 0 {
-				return nil, fmt.Errorf("list follower error: %s", err)
+				return nil, err
 			}
 			break
 		}
@@ -75,7 +69,7 @@ func (c *Cli) following(ctx context.Context, user string) ([]*github.User, error
 			})
 		if err != nil {
 			if len(all) == 0 {
-				return nil, fmt.Errorf("list following error: %s", err)
+				return nil, err
 			}
 			break
 		}
