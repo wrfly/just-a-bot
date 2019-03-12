@@ -3,7 +3,9 @@ package client
 import (
 	"context"
 	"fmt"
+	"net/http"
 
+	"github.com/go-redis/redis"
 	"github.com/google/go-github/v24/github"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
@@ -13,10 +15,20 @@ type Cli struct {
 	cli *github.Client
 }
 
-func New(token string) *Cli {
+func New(token string, redisCli *redis.Client) *Cli {
 	if token == "" {
 		return &Cli{github.NewClient(nil)}
 	}
+
+	ctx := context.WithValue(context.Background(),
+		oauth2.HTTPClient,
+		&http.Client{
+			Transport: &roundTripper{
+				tp:    &http.Transport{},
+				redis: redisCli,
+			},
+		},
+	)
 
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: token},
@@ -24,7 +36,7 @@ func New(token string) *Cli {
 	return &Cli{
 		cli: github.NewClient(
 			oauth2.NewClient(
-				context.Background(),
+				ctx,
 				ts,
 			),
 		),
@@ -109,5 +121,5 @@ func (c *Cli) RelatedUsers(ctx context.Context, user string) []string {
 
 func (c *Cli) Follow(user string) {
 	logrus.Infof("follow %s", user)
-	// c.cli.Users.Follow(context.Background(), user)
+	c.cli.Users.Follow(context.Background(), user)
 }

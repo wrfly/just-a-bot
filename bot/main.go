@@ -4,6 +4,10 @@ import (
 	"context"
 	"flag"
 
+	"github.com/sirupsen/logrus"
+
+	"github.com/go-redis/redis"
+
 	"github.com/wrfly/just_a_bot/client"
 )
 
@@ -16,12 +20,22 @@ var CONFIG = new(config)
 
 func init() {
 	flag.StringVar(&CONFIG.Token, "token", "<token>", "your github token")
-	flag.StringVar(&CONFIG.Redis, "redis", "127.0.0.1:6379/3", "redis cache")
+	flag.StringVar(&CONFIG.Redis, "redis", "redis://127.0.0.1:6379/3", "redis cache")
 	flag.Parse()
 }
 
 func main() {
-	c := client.New(CONFIG.Token)
+	// build redis cli
+	opts, err := redis.ParseURL(CONFIG.Redis)
+	if err != nil {
+		logrus.Fatalf("bad redis conn: %s", err)
+	}
+	redisCli := redis.NewClient(opts)
+	if redisCli.Ping().Err() != nil {
+		logrus.Fatal("bad redis, cannot ping")
+	}
+
+	c := client.New(CONFIG.Token, redisCli)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
