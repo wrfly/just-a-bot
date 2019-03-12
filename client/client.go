@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"net/http"
+	"sync"
 
 	"github.com/go-redis/redis"
 	"github.com/google/go-github/v24/github"
@@ -37,71 +38,89 @@ func New(token string, redisCli *redis.Client) *Cli {
 	}
 }
 
-func (c *Cli) followers(ctx context.Context, user string) ([]*github.User, error) {
-	all := []*github.User{}
-	for i := 1; ; i++ {
-		users, _, err := c.cli.Users.
-			ListFollowers(ctx, user, &github.ListOptions{
-				Page:    i,
-				PerPage: 100,
-			})
-		if err != nil {
-			if len(all) == 0 {
-				return nil, err
+// TODO: add cache here
+func (c *Cli) followers(ctx context.Context, user string) <-chan *github.User {
+	ch := make(chan *github.User)
+	go func() {
+		for i := 1; ; i++ {
+			users, _, err := c.cli.Users.
+				ListFollowers(ctx, user, &github.ListOptions{
+					Page:    i,
+					PerPage: 100,
+				})
+			if err != nil {
+				if i == 1 {
+					logrus.Errorf("list [%s] followers error: %s", user, err)
+				}
+				break
 			}
-			break
+			if len(users) == 0 {
+				break
+			}
+			for _, u := range users {
+				ch <- u
+			}
 		}
-		if len(users) == 0 {
-			break
-		}
-		all = append(all, users...)
-	}
-	return all, nil
+		close(ch)
+	}()
+	return ch
 }
 
-func (c *Cli) following(ctx context.Context, user string) ([]*github.User, error) {
-	all := []*github.User{}
-	for i := 1; ; i++ {
-		users, _, err := c.cli.Users.
-			ListFollowing(ctx, user, &github.ListOptions{
-				Page:    i,
-				PerPage: 100,
-			})
-		if err != nil {
-			if len(all) == 0 {
-				return nil, err
+// TODO: add cache here
+func (c *Cli) following(ctx context.Context, user string) <-chan *github.User {
+	ch := make(chan *github.User)
+	go func() {
+		for i := 1; ; i++ {
+			users, _, err := c.cli.Users.
+				ListFollowing(ctx, user, &github.ListOptions{
+					Page:    i,
+					PerPage: 100,
+				})
+			if err != nil {
+				if i == 1 {
+					logrus.Errorf("list [%s] following error: %s", user, err)
+				}
+				break
 			}
-			break
+			if len(users) == 0 {
+				break
+			}
+			for _, u := range users {
+				ch <- u
+			}
 		}
-		if len(users) == 0 {
-			break
-		}
-		all = append(all, users...)
-	}
-	return all, nil
+		close(ch)
+	}()
+
+	return ch
 }
 
 func (c *Cli) RelatedUsers(ctx context.Context, user string) []string {
-	users := []*github.User{}
+	var wg sync.WaitGroup
+	users := make(chan *github.User)
 
-	if x, err := c.followers(ctx, user); err != nil {
-		logrus.Errorf("list [%s] follower error: %s", user, err)
-	} else {
-		logrus.Infof("%s has %d followers", user, len(x))
-		users = append(users, x...)
-	}
-
-	if x, err := c.following(ctx, user); err != nil {
-		logrus.Errorf("list [%s] following error: %s", user, err)
-	} else {
-		logrus.Infof("%s following %d", user, len(x))
-		users = append(users, x...)
-	}
+	wg.Add(2)
+	go func() {
+		for user := range c.followers(ctx, user) {
+			users <- user
+		}
+		wg.Done()
+	}()
+	go func() {
+		for user := range c.following(ctx, user) {
+			users <- user
+		}
+		wg.Done()
+	}()
 
 	relatedMap := make(map[string]bool)
-	for _, user := range users {
-		relatedMap[user.GetLogin()] = true
-	}
+	go func() {
+		for user := range users {
+			relatedMap[user.GetLogin()] = true
+		}
+	}()
+
+	wg.Wait()
 
 	related := make([]string, 0, len(relatedMap))
 	for user := range relatedMap {

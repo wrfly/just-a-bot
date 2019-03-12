@@ -40,26 +40,23 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	limitChan := make(chan struct{}, 10)
-	userChan := make(chan string, 1000)
+	userChan := make(chan string, 1e6)
+	userChan <- "wrfly"
+
+	nextUserChan := make(chan string, 1e6)
 
 	go func() {
-		for _, user := range c.RelatedUsers(ctx, "wrfly") {
-			userChan <- user
+		for user := range nextUserChan {
+			for _, user := range c.RelatedUsers(ctx, user) {
+				userChan <- user
+			}
 		}
 	}()
 
 	go func() {
 		for user := range userChan {
 			c.Follow(user)
-
-			limitChan <- struct{}{}
-			go func(user string) {
-				for _, user := range c.RelatedUsers(ctx, user) {
-					userChan <- user
-				}
-				<-limitChan
-			}(user)
+			nextUserChan <- user
 		}
 	}()
 
