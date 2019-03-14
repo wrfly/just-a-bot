@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"io/ioutil"
 	"net/http"
 	"sync"
 
@@ -134,5 +135,9 @@ func (c *Cli) RelatedUsers(ctx context.Context, user string) []string {
 
 func (c *Cli) Follow(user string) {
 	logrus.Infof("follow %s", user)
-	c.cli.Users.Follow(context.Background(), user)
+	resp, err := c.cli.Users.Follow(context.Background(), user)
+	if err != nil {
+		bs, _ := ioutil.ReadAll(resp.Body)
+		logrus.Errorf("follow %s err: %s [%s]", user, bs, err)
+	}
 }

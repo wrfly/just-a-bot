@@ -17,7 +17,7 @@ type roundTripper struct {
 }
 
 func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	key := req.URL.String()
+	key := req.Method + req.URL.String()
 	if bs, err := rt.redis.Get(key).Bytes(); err == nil {
 		logrus.Debugf("got cache for %s", key)
 		respBS, _ := rt.redis.Get(key + ":header").Bytes()

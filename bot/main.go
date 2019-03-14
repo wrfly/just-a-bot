@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"time"
 
 	"github.com/sirupsen/logrus"
 
@@ -56,6 +57,7 @@ func main() {
 	go func() {
 		for user := range userChan {
 			c.Follow(user)
+			time.Sleep(time.Second * 5)
 			nextUserChan <- user
 		}
 	}()
